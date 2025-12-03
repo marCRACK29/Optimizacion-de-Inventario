@@ -1,0 +1,2 @@
+Para separar la lógica del código de los 
+parámetros de entrenamiento. (hiperparametros)
