@@ -1,0 +1,24 @@
+# Ultra Fast (5 min)
+
+total_steps: 300000
+
+n_envs: 2
+
+policy_net:
+  layers: [64, 64]
+
+dqn:
+  learning_rate: 0.001
+  gamma: 0.95
+  buffer_size: 40000
+  learning_starts: 1000
+  batch_size: 64
+  train_freq: 8
+  gradient_steps: 1
+  n_steps: 1
+  target_update_interval: 500
+
+exploration:
+  fraction: 0.20
+  initial_eps: 1.0
+  final_eps: 0.05
