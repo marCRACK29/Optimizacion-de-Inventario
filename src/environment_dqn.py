@@ -17,7 +17,7 @@ IDX_UNITS_SOLD = 8 # Target, no lo puede ver el agente
 class RetailEnvDQN(gym.Env):
     """Entorno optimizado para DQN en control de inventarios."""
 
-    def __init__(self, data_array, ventana=7, duracion_simulacion=90):
+    def __init__(self, data_array, ventana=7, duracion_simulacion=20):
         super().__init__()
 
         self.data = data_array
@@ -93,8 +93,8 @@ class RetailEnvDQN(gym.Env):
 
         ingresos = vendido * precio
         costo_pedido = pedido_qty * unit_cost
-        costo_guardado = self.inventario * 0.05
-        costo_stockout = (demanda - vendido) * precio * 0.3
+        costo_guardado = self.inventario * 0.02
+        costo_stockout = (demanda - vendido) * precio * 0.2
 
         # Penalizar inventario excesivo
         exceso = max(0, self.inventario - self.max_inventario * 0.7) * 0.1

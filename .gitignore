@@ -23,3 +23,15 @@ build/
 
 # Logs
 *.log
+
+
+# RL Results
+results/models/dqn/tensorboard/
+results/models/dqn/eval_logs/
+results/models/dqn/best_model/
+results/models/dqn/model_final/
+results/models/dqn/*.csv
+
+# Plots
+results/plots/dqn/*
+results/plots/eda/*
