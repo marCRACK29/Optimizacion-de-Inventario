@@ -1,6 +1,6 @@
 # Entrenamiento de alta calidad (6–10 horas)
 
-total_steps: 600000
+total_steps: 1000000
 
 n_envs: 4
 
@@ -9,8 +9,8 @@ policy_net:
 
 dqn:
   learning_rate: 0.0005
-  gamma: 0.95
-  buffer_size: 120000
+  gamma: 0.98
+  buffer_size: 200000
   learning_starts: 2000
   batch_size: 128
   train_freq: 4
@@ -19,6 +19,6 @@ dqn:
   target_update_interval: 250
 
 exploration:
-  fraction: 0.30
+  fraction: 0.40
   initial_eps: 1.0
   final_eps: 0.05
