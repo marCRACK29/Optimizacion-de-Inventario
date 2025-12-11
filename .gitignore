@@ -35,3 +35,5 @@ results/models/dqn/*.csv
 # Plots
 results/plots/dqn/*
 results/plots/eda/*
+results/plots/benchmark/*
+results/plots/test_split/*
