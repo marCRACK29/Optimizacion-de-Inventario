@@ -3,36 +3,40 @@ from gymnasium import spaces
 from collections import deque
 import numpy as np
 
+IDX_INVENTORY_LEVEL = 5
+IDX_FORECAST = 8
+IDX_PRICE = 9
+IDX_DISCOUNT = 10
+IDX_HOLIDAY = 12
+IDX_COMPETITOR = 13
+IDX_WEATHER = 15
+IDX_SEASONALITY = 16
+IDX_CATEGORY = 17
 
-IDX_INVENTORY_LEVEL = 0
-IDX_FORECAST = 1
-IDX_PRICE = 2
-IDX_DISCOUNT = 3
-IDX_HOLIDAY = 4
-IDX_COMPETITOR = 5
-IDX_WEATHER = 6
-IDX_SEASONALITY = 7
-IDX_UNITS_SOLD = 8 # Target, no lo puede ver el agente
-
+IDX_UNITS_SOLD = 6 # Target, no lo puede ver el agente
 
 class RetailEnvDQN(gym.Env):
     """Entorno optimizado para DQN en control de inventarios."""
 
-    def __init__(self, data_array, ventana=7, duracion_simulacion=90):
+    def __init__(self, stores_dict, ventana=7, duracion_simulacion=90):
         super().__init__()
 
-        self.data = data_array
+        self.stores = stores_dict
+        self.store_ids = list(stores_dict.keys()) # lista de tiendas disponibles
         self.ventana = ventana # 7 días, es decir, el agente ve el día actual y 6 días atrás
         self.duracion_simulacion = duracion_simulacion # 90 días de gestión del inventario
+        self.data = None     # aquí se cargará la tienda seleccionada
+        self.store_id = None
 
         # Normalización basada en el dataset
-        self.inv_max = 800.0
-        self.forecast_max = 400.0
-        self.price_max = 100.0
-        self.discount_max = 50.0
-        self.competitor_max = 100.0
-        self.weather_max = 3.0
-        self.season_max = 3.0
+        self.inv_max = None
+        self.forecast_max = None
+        self.price_max = None
+        self.discount_max = None
+        self.competitor_max = None
+        self.weather_max = None
+        self.season_max = None
+        self.category_max = None
 
         # Acción = unidades pedidas hoy
         # Son las unidades que puede pedir (hasta 800 unidades)
@@ -98,29 +102,38 @@ class RetailEnvDQN(gym.Env):
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
 
-        # Modo evaluación (Test)
-        # Si el entorno fue creado con disable_random_reset=True
-        # entonces el episodio SIEMPRE empieza al inicio del dataset
-        if getattr(self, "disable_random_reset", False):
-            self.start_step = getattr(self, "fixed_start", 0)
-
-        # Modo entrenamiento (Train)
+        # 1. Selección de tienda (solo entrenamiento)
+        if not getattr(self, "disable_random_reset", False):
+            self.store_id = self.np_random.choice(self.store_ids)
         else:
-            # Selección aleatoria del inicio (respetando ventana + duración)
-            max_start = len(self.data) - self.duracion_simulacion - 1
-            self.start_step = self.np_random.integers(self.ventana, max_start)
+            # Modo evaluación: tienda fija
+            self.store_id = getattr(self, "fixed_store", self.store_ids[0])
 
+        # 2. cargar datos y normalizadores de la tienda seleccionada
+        store_info = self.stores[self.store_id]
+        self.data = store_info["data"]
+
+        self.inv_max = store_info["inv_max"]
+        self.forecast_max = store_info["forecast_max"]
+        self.price_max = store_info["price_max"]
+        self.discount_max = store_info["discount_max"]
+        self.competitor_max = store_info["competitor_max"]
+        self.weather_max = store_info["weather_max"]
+        self.season_max = store_info["season_max"]
+        self.category_max = store_info["category_max"]
+
+        # 3. Selección aleatoria del punto de inicio (dentro de ESA tienda)
+        max_start = len(self.data) - self.duracion_simulacion - 1
+        self.start_step = self.np_random.integers(self.ventana, max_start)
+
+        # 4. inicialización estándar (inventario, historial, etc.)
         self.current_step = self.start_step
         self.steps = 0
-
-        # Estado inicial
         self.inventario = 200
         self.cola_pedidos = [0] * self.tiempo_entrega
         self.ultimo_pedido_qty = 0
 
-        # Historial de inventario para la ventana
         self.history_inv = deque([self.inventario] * self.ventana, maxlen=self.ventana)
-
         obs = self._get_window_observation()
         return obs, {}
 
@@ -162,10 +175,10 @@ class RetailEnvDQN(gym.Env):
         fill_std = self._running_std("fill")
 
         # z-score del inventario
-        forecast = self.data[self.current_step, IDX_FORECAST]
-        target = max(1.0, forecast * 1.2) # definimos en el entorno que tener un inventario del 120% del pronostico es "ideal"
-        z_inv = (self.inv_mean - target) / (inv_std + 1e-8)
-        z_inv = float(np.clip(z_inv, -3.0, 3.0))
+        # forecast = self.data[self.current_step, IDX_FORECAST]
+        # target = max(1.0, forecast * 1.2) # definimos en el entorno que tener un inventario del 120% del pronostico es "ideal"
+        # z_inv = (self.inv_mean - target) / (inv_std + 1e-8)
+        # z_inv = float(np.clip(z_inv, -3.0, 3.0))
 
         # Volatilidad del pedido
         # cuanto más volátil es el pedido, más castigo se le da (evitar que sea erratico)
@@ -178,7 +191,7 @@ class RetailEnvDQN(gym.Env):
 
         # Multiplicadores dinámicos
         # Aquí es donde el entorno ajusta los castigos basándose en cálculos anteriores
-        hold_mult = 1.0 + self.k_hold * z_inv - 0.5 * fill_def
+        hold_mult = 1.0 - 0.5 * fill_def #1.0 + self.k_hold * z_inv - 0.5 * fill_def
         hold_mult = float(np.clip(hold_mult, self.hold_clip[0], self.hold_clip[1]))
 
         order_mult = 1.0 + self.k_order * order_vol
@@ -233,13 +246,14 @@ class RetailEnvDQN(gym.Env):
         """Normaliza una fila de features."""
         return np.array([
             inv_historico / self.inv_max,
-            row[IDX_FORECAST] / self.forecast_max,
+            #row[IDX_FORECAST] / self.forecast_max,
             row[IDX_PRICE] / self.price_max,
             row[IDX_DISCOUNT] / self.discount_max,
             row[IDX_HOLIDAY],
             row[IDX_COMPETITOR] / self.competitor_max,
             row[IDX_WEATHER] / self.weather_max,
-            row[IDX_SEASONALITY] / self.season_max
+            row[IDX_SEASONALITY] / self.season_max,
+            row[IDX_CATEGORY] / self.category_max
         ], dtype=np.float32)
 
 
