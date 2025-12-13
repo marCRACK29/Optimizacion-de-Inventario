@@ -298,3 +298,4 @@ yarl==1.22.0
 yt-dlp==2025.10.22
 zipp==3.23.0
 zstandard==0.25.0
+seaborn==0.13.2
